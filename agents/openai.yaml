@@ -1,6 +1,6 @@
 interface:
   display_name: "Trading Tools"
-  short_description: "View Binance futures positions and charts."
-  default_prompt: "Use $trading-tools to render an NVDAUSDT futures chart."
+  short_description: "View Binance futures orders, conditional orders, positions, charts, and analysis."
+  default_prompt: "Use $trading-tools to fetch NVDAUSDT futures analysis data."
 policy:
   allow_implicit_invocation: true
