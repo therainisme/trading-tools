@@ -1,54 +1,17 @@
 ---
 name: trading-tools
-description: Read-only trading account helpers for Binance futures positions. Use when Codex needs to inspect the current user's Binance USDⓈ-M or COIN-M futures position list, check open futures positions, configure JSON-based trading API credentials, or troubleshoot Binance futures USER_DATA position queries.
+description: Read-only Binance futures helpers for account positions and market charts. Use when Codex needs to inspect the current user's Binance USDⓈ-M or COIN-M futures position list, check open futures positions, configure JSON-based trading API credentials, render a futures candlestick chart such as NVDAUSDT, display Binance futures trend, kline, or candlestick chart images in the Codex desktop UI, or troubleshoot Binance futures USER_DATA and public market-data queries.
 ---
 
 # Trading Tools
 
-## Binance futures positions
+## Tool index
 
-Use `scripts/list_futures_positions.py` to list the current user's Binance futures positions. The script reads JSON configuration from the skill directory first, then the user's home directory:
+Load the matching reference file before running a tool.
 
-1. `<skill-root>/.trading-tools/config.json`
-2. `~/.trading-tools/config.json`
+- `scripts/render_futures_chart.py`: render a Binance USDⓈ-M futures candlestick chart as SVG or PNG from public market data. Full usage and parameters: `references/render-futures-chart.md`.
+- `scripts/list_futures_positions.py`: list Binance USDⓈ-M or COIN-M futures positions for the configured account. Full usage, parameters, and config fields: `references/list-futures-positions.md`.
 
-If neither file exists, or required fields are missing, report the configuration error and do not call Binance.
+## Shared reference
 
-## Configuration
-
-```json
-{
-  "binance": {
-    "api_key": "your_api_key",
-    "api_secret": "your_api_secret",
-    "futures": {
-      "market": "um",
-      "testnet": false,
-      "recv_window": 5000,
-      "symbol": null
-    }
-  }
-}
-```
-
-- Use a read-only Binance API key.
-- Keep `api_secret` out of logs and user-facing output.
-- `market` is `um` for USDⓈ-M futures and `cm` for COIN-M futures.
-- `recv_window` is the Binance signed-request validity window in milliseconds.
-- `symbol` limits results to one symbol when set; `null` means all returned positions.
-
-## Commands
-
-```bash
-python /home/vivy/rich/scripts/list_futures_positions.py
-python /home/vivy/rich/scripts/list_futures_positions.py --market um --symbol BTCUSDT
-python /home/vivy/rich/scripts/list_futures_positions.py --market cm
-python /home/vivy/rich/scripts/list_futures_positions.py --json
-python /home/vivy/rich/scripts/list_futures_positions.py --dry-run
-```
-
-Use `--dry-run` to verify configuration and the signed request shape without sending an API request. Dry-run output must redact the full API key, secret, and signature.
-
-## Reference
-
-Read `references/binance-futures.md` for endpoint details, signing behavior, and common errors.
+Read `references/binance-futures.md` for Binance endpoint details, signing behavior, official docs, and common API errors.
