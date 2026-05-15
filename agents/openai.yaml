@@ -1,0 +1,6 @@
+interface:
+  display_name: "Trading Tools"
+  short_description: "Read-only helpers for Binance futures positions."
+  default_prompt: "Use $trading-tools to list my Binance futures positions."
+policy:
+  allow_implicit_invocation: true
