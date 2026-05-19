@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
 MARKETS = {"um", "cm"}
@@ -296,13 +302,16 @@ def format_dry_run(payload: dict[str, Any]) -> str:
 
 def fetch_json(
     request: SignedRequest,
-    opener: Callable[..., Any] = urlopen,
+    opener: Callable[..., Any] | None = None,
     timeout: int = 10,
 ) -> Any:
     req = Request(request.url, headers=request.headers, method=request.method)
+    http_open = opener or urlopen_with_env_proxy
     try:
-        with opener(req, timeout=timeout) as response:
+        with http_open(req, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
+    except ProxyConfigError as exc:
+        raise BinanceAPIError(f"proxy configuration error: {exc}") from exc
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         raise BinanceAPIError(f"Binance API returned HTTP {exc.code}: {detail}") from exc

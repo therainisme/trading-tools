@@ -284,6 +284,19 @@ Endpoint base URLs:
 | USD-M public and signed | `https://fapi.binance.com` | `https://demo-fapi.binance.com` for signed account-risk dry/live endpoints | `/fapi/*`, `/futures/data/*` |
 | COIN-M signed account/order data | `https://dapi.binance.com` | `https://testnet.binancefuture.com` | `/dapi/*` |
 
+## Proxy environment variables
+
+All Python HTTP calls support exported proxy environment variables. `HTTP_PROXY` and `HTTPS_PROXY` apply to their matching request schemes, `ALL_PROXY` is the fallback for both schemes, and `PROXY` is the project-level fallback when no standard proxy variable is set. Lowercase equivalents are also accepted. `NO_PROXY` / `no_proxy` is left to urllib's bypass handling.
+
+Examples:
+
+```bash
+PROXY=http://127.0.0.1:7890 python scripts/list_futures_positions.py
+HTTPS_PROXY=http://127.0.0.1:7890 python scripts/render_futures_chart.py --symbol NVDAUSDT
+```
+
+Proxy URLs must use `http://` or `https://`. SOCKS proxy URLs such as `socks5://...` are not supported by the built-in transport.
+
 ## Signing
 
 USER_DATA requests require:

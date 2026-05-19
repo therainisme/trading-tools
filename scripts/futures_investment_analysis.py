@@ -15,7 +15,13 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
 PUBLIC_BASE_URL = "https://fapi.binance.com"
@@ -336,13 +342,16 @@ def build_signed_request(
 def fetch_json(
     url: str,
     headers: dict[str, str] | None = None,
-    opener: Callable[..., Any] = urlopen,
+    opener: Callable[..., Any] | None = None,
     timeout: int = 15,
 ) -> Any:
     request = Request(url, headers={"User-Agent": "trading-tools/1.0", **(headers or {})}, method="GET")
+    http_open = opener or urlopen_with_env_proxy
     try:
-        with opener(request, timeout=timeout) as response:
+        with http_open(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
+    except ProxyConfigError as exc:
+        raise AnalysisError(f"proxy configuration error: {exc}") from exc
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         raise AnalysisError(f"Binance API returned HTTP {exc.code}: {detail}") from exc
@@ -402,7 +411,7 @@ def request_preview(
 def collect_analysis(
     options: AnalysisOptions,
     credentials: BinanceCredentials | None = None,
-    opener: Callable[..., Any] = urlopen,
+    opener: Callable[..., Any] | None = None,
     timeout: int = 15,
 ) -> dict[str, Any]:
     specs = build_endpoint_specs(options)

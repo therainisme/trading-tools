@@ -12,7 +12,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
-from urllib.request import urlopen
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -130,7 +129,7 @@ def build_request(config: BinanceFuturesConfig, options: CancelOrderOptions):
 def execute_cancel(
     config: BinanceFuturesConfig,
     options: CancelOrderOptions,
-    opener: Callable[..., Any] = urlopen,
+    opener: Callable[..., Any] | None = None,
     timeout: int = 15,
 ) -> dict[str, Any]:
     mode = validate_mode(options.mode)

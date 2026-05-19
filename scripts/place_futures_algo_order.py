@@ -12,7 +12,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
-from urllib.request import urlopen
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -166,7 +165,7 @@ def build_request(config: BinanceFuturesConfig, options: AlgoOrderOptions):
 def execute_algo_order(
     config: BinanceFuturesConfig,
     options: AlgoOrderOptions,
-    opener: Callable[..., Any] = urlopen,
+    opener: Callable[..., Any] | None = None,
     timeout: int = 15,
 ) -> dict[str, Any]:
     mode = validate_mode(options.mode)
