@@ -152,6 +152,25 @@ class FuturesInvestmentAnalysisTests(unittest.TestCase):
         self.assertNotIn("ABCDEFGHIJKL", text)
         self.assertIn("account_information", text)
 
+    def test_public_dry_run_uses_proxy_and_redacts_key(self):
+        """Purpose: verify public endpoint previews show the Worker URL with a redacted proxy key."""
+        options = analysis.AnalysisOptions(symbol="NVDAUSDT", groups=("valuation",), dry_run=True)
+        proxy_config = analysis.BinanceProxyConfig(
+            enabled=True,
+            base_url="https://worker.example.test",
+            auth_key="proxy-secret-1234",
+        )
+
+        preview = analysis.request_preview(
+            analysis.build_endpoint_specs(options)[0],
+            proxy_config=proxy_config,
+        )
+        text = json.dumps(preview)
+
+        self.assertTrue(preview["url"].startswith("https://worker.example.test/fapi/fapi/v1/premiumIndex?"))
+        self.assertEqual(preview["headers"]["X-Trading-Proxy-Key"], "prox...1234")
+        self.assertNotIn("proxy-secret-1234", text)
+
     def test_load_credentials_reads_first_config(self):
         """Purpose: verify credential loading follows the skill-root before home lookup order."""
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:

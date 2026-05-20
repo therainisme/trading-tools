@@ -297,6 +297,73 @@ HTTPS_PROXY=http://127.0.0.1:7890 python scripts/render_futures_chart.py --symbo
 
 Proxy URLs must use `http://` or `https://`. SOCKS proxy URLs such as `socks5://...` are not supported by the built-in transport.
 
+## Cloudflare Worker endpoint proxy
+
+The repository includes a trial Cloudflare Worker proxy in `deploy/cloudflare-worker/`. It accepts requests only when the client sends `X-Trading-Proxy-Key` with the configured secret value. Failed auth and unknown route prefixes return HTTP 404. The default custom domain is `bnp.therainisme.com`, and `workers_dev = true` remains enabled as a fallback test URL.
+
+Worker route mapping:
+
+| Worker path prefix | Upstream base URL |
+| --- | --- |
+| `/fapi/*` | `https://fapi.binance.com/*` |
+| `/dapi/*` | `https://dapi.binance.com/*` |
+| `/demo-fapi/*` | `https://demo-fapi.binance.com/*` |
+| `/testnet-future/*` | `https://testnet.binancefuture.com/*` |
+
+Deploy:
+
+```bash
+cd deploy/cloudflare-worker
+npx wrangler secret put TRADING_PROXY_KEY
+npx wrangler deploy
+```
+
+Verify with the custom domain after deployment:
+
+```bash
+curl -i https://bnp.therainisme.com/fapi/fapi/v1/time
+curl -i -H 'X-Trading-Proxy-Key: your-proxy-key' \
+  https://bnp.therainisme.com/fapi/fapi/v1/time
+```
+
+The first command should return 404. The second should return Binance JSON.
+
+Enable the proxy from `.trading-tools/config.json`:
+
+```json
+{
+  "binance": {
+    "api_key": "your-binance-api-key",
+    "api_secret": "your-binance-api-secret",
+    "futures": {
+      "market": "um",
+      "testnet": false,
+      "recv_window": 5000,
+      "symbol": null,
+      "proxy": {
+        "enabled": true,
+        "base_url": "https://bnp.therainisme.com",
+        "auth_header": "X-Trading-Proxy-Key",
+        "auth_key": "your-proxy-key"
+      }
+    }
+  }
+}
+```
+
+The Python tools sign Binance query strings before switching the base URL to the Worker route. Dry-run output redacts the Binance API key, the signature, and the proxy key.
+
+Proxy config fields:
+
+| Field | Required when enabled | Meaning |
+| --- | --- | --- |
+| `enabled` | Yes | Turns Worker endpoint routing on. |
+| `base_url` | Yes | Worker origin, currently `https://bnp.therainisme.com`. |
+| `auth_header` | No | Header name sent by the Python tools, defaults to `X-Trading-Proxy-Key`. |
+| `auth_key` | Yes | Client-side proxy key. It must match the Worker secret `TRADING_PROXY_KEY`. |
+
+The local `.trading-tools/config.json` file is ignored by git. Store the real `auth_key` there, and keep documentation examples as placeholders.
+
 ## Signing
 
 USER_DATA requests require:

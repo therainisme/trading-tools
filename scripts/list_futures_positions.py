@@ -26,6 +26,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from binance_proxy import (  # noqa: E402
+    DISABLED_PROXY_CONFIG,
+    BinanceProxyConfig,
+    add_proxy_auth_headers,
+    parse_proxy_config,
+    redacted_proxy_auth_headers,
+    resolve_proxy_base_url,
+)
 from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
@@ -71,6 +79,7 @@ class BinanceFuturesConfig:
     recv_window: int = DEFAULT_RECV_WINDOW
     symbol: str | None = None
     config_path: Path | None = None
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG
 
 
 @dataclass(frozen=True)
@@ -192,6 +201,7 @@ def normalize_config(data: dict[str, Any], path: Path) -> BinanceFuturesConfig:
         recv_window=recv_window,
         symbol=symbol,
         config_path=path,
+        proxy_config=parse_proxy_config(futures, path, ConfigError),
     )
 
 
@@ -239,7 +249,7 @@ def sign_query(query: str, api_secret: str) -> str:
 
 def build_signed_request(config: BinanceFuturesConfig, timestamp_ms: int | None = None) -> SignedRequest:
     timestamp = timestamp_ms if timestamp_ms is not None else current_timestamp_ms()
-    base_url = BASE_URLS[(config.market, config.testnet)]
+    base_url = resolve_proxy_base_url(BASE_URLS[(config.market, config.testnet)], config.proxy_config)
     path = POSITION_PATHS[config.market]
     query = urlencode(build_query_params(config, timestamp))
     signature = sign_query(query, config.api_secret)
@@ -251,7 +261,7 @@ def build_signed_request(config: BinanceFuturesConfig, timestamp_ms: int | None 
         query=query,
         signature=signature,
         url=f"{base_url}{path}?{signed_query}",
-        headers={"X-MBX-APIKEY": config.api_key},
+        headers=add_proxy_auth_headers({"X-MBX-APIKEY": config.api_key}, config.proxy_config),
     )
 
 
@@ -266,6 +276,8 @@ def redacted_url(request: SignedRequest) -> str:
 
 
 def dry_run_payload(config: BinanceFuturesConfig, request: SignedRequest) -> dict[str, Any]:
+    headers = {"X-MBX-APIKEY": redact_api_key(config.api_key)}
+    headers.update(redacted_proxy_auth_headers(config.proxy_config))
     return {
         "config_path": str(config.config_path) if config.config_path else None,
         "market": config.market,
@@ -275,7 +287,7 @@ def dry_run_payload(config: BinanceFuturesConfig, request: SignedRequest) -> dic
         "path": request.path,
         "query": request.query,
         "url": redacted_url(request),
-        "headers": {"X-MBX-APIKEY": redact_api_key(config.api_key)},
+        "headers": headers,
         "signature": "<redacted>",
         "client_side_symbol_filter": config.symbol if config.market == "cm" and config.symbol else None,
     }
@@ -292,9 +304,10 @@ def format_dry_run(payload: dict[str, Any]) -> str:
         f"path: {payload['path']}",
         f"query: {payload['query']}",
         f"url: {payload['url']}",
-        f"X-MBX-APIKEY: {payload['headers']['X-MBX-APIKEY']}",
         "signature: <redacted>",
     ]
+    for header_name, header_value in payload["headers"].items():
+        lines.insert(-1, f"{header_name}: {header_value}")
     if payload.get("client_side_symbol_filter"):
         lines.append(f"client_side_symbol_filter: {payload['client_side_symbol_filter']}")
     return "\n".join(lines)

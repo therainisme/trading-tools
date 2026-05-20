@@ -25,6 +25,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from binance_proxy import (  # noqa: E402
+    DISABLED_PROXY_CONFIG,
+    BinanceProxyConfig,
+    add_proxy_auth_headers,
+    load_proxy_config_from_candidates,
+    resolve_proxy_base_url,
+)
 from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
@@ -121,19 +128,42 @@ def timezone_info(name: str) -> ZoneInfo:
         raise ChartError(f"timezone was not found: {name}") from exc
 
 
-def build_url(path: str, params: Iterable[tuple[str, str | int]] | None = None) -> str:
+def skill_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def config_candidates(root: Path | None = None, home: Path | None = None) -> list[Path]:
+    root_path = root or skill_root()
+    home_path = home or Path.home()
+    return [
+        root_path / ".trading-tools" / "config.json",
+        home_path / ".trading-tools" / "config.json",
+    ]
+
+
+def load_optional_proxy_config(root: Path | None = None, home: Path | None = None) -> BinanceProxyConfig:
+    return load_proxy_config_from_candidates(config_candidates(root=root, home=home), ChartError)
+
+
+def build_url(
+    path: str,
+    params: Iterable[tuple[str, str | int]] | None = None,
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG,
+) -> str:
     query = urlencode(list(params or []))
+    base_url = resolve_proxy_base_url(BASE_URL, proxy_config)
     if query:
-        return f"{BASE_URL}{path}?{query}"
-    return f"{BASE_URL}{path}"
+        return f"{base_url}{path}?{query}"
+    return f"{base_url}{path}"
 
 
 def fetch_json(
     url: str,
+    headers: dict[str, str] | None = None,
     opener: Callable[..., Any] | None = None,
     timeout: int = 15,
 ) -> Any:
-    request = Request(url, headers={"User-Agent": "trading-tools/1.0"}, method="GET")
+    request = Request(url, headers={"User-Agent": "trading-tools/1.0", **(headers or {})}, method="GET")
     http_open = opener or urlopen_with_env_proxy
     try:
         with http_open(request, timeout=timeout) as response:
@@ -154,8 +184,17 @@ def fetch_json(
         raise ChartError(f"Binance market data returned invalid JSON: {exc}") from exc
 
 
-def fetch_exchange_info(opener: Callable[..., Any] | None = None, timeout: int = 15) -> dict[str, Any]:
-    data = fetch_json(build_url(EXCHANGE_INFO_PATH), opener=opener, timeout=timeout)
+def fetch_exchange_info(
+    opener: Callable[..., Any] | None = None,
+    timeout: int = 15,
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG,
+) -> dict[str, Any]:
+    data = fetch_json(
+        build_url(EXCHANGE_INFO_PATH, proxy_config=proxy_config),
+        headers=add_proxy_auth_headers({}, proxy_config),
+        opener=opener,
+        timeout=timeout,
+    )
     if not isinstance(data, dict):
         raise ChartError("Binance exchangeInfo response must be a JSON object")
     return data
@@ -167,6 +206,7 @@ def fetch_klines(
     limit: int,
     opener: Callable[..., Any] | None = None,
     timeout: int = 15,
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG,
 ) -> Any:
     url = build_url(
         KLINES_PATH,
@@ -175,8 +215,9 @@ def fetch_klines(
             ("interval", interval),
             ("limit", limit),
         ],
+        proxy_config=proxy_config,
     )
-    return fetch_json(url, opener=opener, timeout=timeout)
+    return fetch_json(url, headers=add_proxy_auth_headers({}, proxy_config), opener=opener, timeout=timeout)
 
 
 def validate_futures_symbol(exchange_info: dict[str, Any], symbol: str) -> SymbolInfo:
@@ -537,10 +578,11 @@ def render_chart(options: ChartOptions, opener: Callable[..., Any] | None = None
     interval = validate_interval(options.interval)
     limit = validate_limit(options.limit)
     timezone_info(options.timezone)
+    proxy_config = load_optional_proxy_config()
 
-    exchange_info = fetch_exchange_info(opener=opener, timeout=timeout)
+    exchange_info = fetch_exchange_info(opener=opener, timeout=timeout, proxy_config=proxy_config)
     symbol_info = validate_futures_symbol(exchange_info, symbol)
-    raw_klines = fetch_klines(symbol, interval, limit, opener=opener, timeout=timeout)
+    raw_klines = fetch_klines(symbol, interval, limit, opener=opener, timeout=timeout, proxy_config=proxy_config)
     candles = parse_klines(raw_klines)
     svg = render_svg(candles, symbol_info, interval, options.timezone)
     output_path = resolve_output_path(symbol, interval, options.output_format, options.output)

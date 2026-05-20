@@ -25,6 +25,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from binance_proxy import (  # noqa: E402
+    DISABLED_PROXY_CONFIG,
+    BinanceProxyConfig,
+    add_proxy_auth_headers,
+    parse_proxy_config,
+    redacted_proxy_auth_headers,
+    resolve_proxy_base_url,
+)
 from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
@@ -131,6 +139,7 @@ class BinanceFuturesConfig:
     recv_window: int = DEFAULT_RECV_WINDOW
     symbol: str | None = None
     config_path: Path | None = None
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG
 
 
 @dataclass(frozen=True)
@@ -254,6 +263,7 @@ def normalize_config(data: dict[str, Any], path: Path) -> BinanceFuturesConfig:
         recv_window=parse_recv_window(futures.get("recv_window", DEFAULT_RECV_WINDOW), path),
         symbol=normalize_config_symbol(futures.get("symbol"), path),
         config_path=path,
+        proxy_config=parse_proxy_config(futures, path, ConfigError),
     )
 
 
@@ -421,7 +431,7 @@ def build_signed_request(
     timestamp = timestamp_ms if timestamp_ms is not None else current_timestamp_ms()
     kind = validate_kind(options.kind)
     validate_market_kind(config.market, kind)
-    base_url = BASE_URLS[(config.market, config.testnet)]
+    base_url = resolve_proxy_base_url(BASE_URLS[(config.market, config.testnet)], config.proxy_config)
     path = ORDER_PATHS[(config.market, kind)]
     query = urlencode(build_order_params(config, options, timestamp))
     signature = sign_query(query, config.api_secret)
@@ -433,7 +443,7 @@ def build_signed_request(
         query=query,
         signature=signature,
         url=f"{base_url}{path}?{signed_query}",
-        headers={"X-MBX-APIKEY": config.api_key},
+        headers=add_proxy_auth_headers({"X-MBX-APIKEY": config.api_key}, config.proxy_config),
     )
 
 
@@ -448,6 +458,8 @@ def redacted_url(request: SignedRequest) -> str:
 
 
 def dry_run_payload(config: BinanceFuturesConfig, options: OrderRequestOptions, request: SignedRequest) -> dict[str, Any]:
+    headers = {"X-MBX-APIKEY": redact_api_key(config.api_key)}
+    headers.update(redacted_proxy_auth_headers(config.proxy_config))
     return {
         "config_path": str(config.config_path) if config.config_path else None,
         "market": config.market,
@@ -458,7 +470,7 @@ def dry_run_payload(config: BinanceFuturesConfig, options: OrderRequestOptions, 
         "path": request.path,
         "query": request.query,
         "url": redacted_url(request),
-        "headers": {"X-MBX-APIKEY": redact_api_key(config.api_key)},
+        "headers": headers,
         "signature": "<redacted>",
     }
 

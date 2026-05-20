@@ -156,6 +156,32 @@ class TradingToolsTests(unittest.TestCase):
         self.assertNotIn("symbol=", request.query)
         self.assertIn("recvWindow=6000", request.query)
 
+    def test_proxy_signed_request_url_and_dry_run_redaction(self):
+        """Purpose: verify proxy config rewrites the base URL and redacts the proxy key."""
+        config = positions.BinanceFuturesConfig(
+            api_key="ABCDEFGHIJKL",
+            api_secret="VERY_SECRET_VALUE",
+            market="um",
+            testnet=False,
+            recv_window=5000,
+            symbol="BTCUSDT",
+            proxy_config=positions.BinanceProxyConfig(
+                enabled=True,
+                base_url="https://worker.example.test",
+                auth_key="proxy-secret-1234",
+            ),
+        )
+
+        request = positions.build_signed_request(config, timestamp_ms=1700000000000)
+        payload = positions.dry_run_payload(config, request)
+        text = json.dumps(payload)
+
+        self.assertEqual(request.base_url, "https://worker.example.test/fapi")
+        self.assertTrue(request.url.startswith("https://worker.example.test/fapi/fapi/v3/positionRisk?"))
+        self.assertEqual(request.headers["X-Trading-Proxy-Key"], "proxy-secret-1234")
+        self.assertEqual(payload["headers"]["X-Trading-Proxy-Key"], "prox...1234")
+        self.assertNotIn("proxy-secret-1234", text)
+
     def test_overrides_replace_config_values(self):
         """Purpose: verify CLI overrides replace market, symbol, and testnet settings."""
         config = positions.BinanceFuturesConfig(

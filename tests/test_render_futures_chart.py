@@ -118,6 +118,18 @@ class RenderFuturesChartTests(unittest.TestCase):
 
         self.assertIn("no klines", str(raised.exception))
 
+    def test_build_url_uses_proxy_prefix(self):
+        """Purpose: verify chart market-data URLs can be routed through the Worker proxy."""
+        proxy_config = charts.BinanceProxyConfig(
+            enabled=True,
+            base_url="https://worker.example.test",
+            auth_key="proxy-secret-1234",
+        )
+
+        url = charts.build_url(charts.KLINES_PATH, [("symbol", "NVDAUSDT")], proxy_config=proxy_config)
+
+        self.assertEqual(url, "https://worker.example.test/fapi/fapi/v1/klines?symbol=NVDAUSDT")
+
     def test_render_svg_contains_chart_markers(self):
         """Purpose: verify SVG output includes the expected axes, title, and vector root."""
         candles = charts.parse_klines(SAMPLE_KLINES)

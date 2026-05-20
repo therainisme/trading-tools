@@ -21,6 +21,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from binance_proxy import (  # noqa: E402
+    DISABLED_PROXY_CONFIG,
+    BinanceProxyConfig,
+    add_proxy_auth_headers,
+    parse_proxy_config,
+    redacted_proxy_auth_headers,
+    resolve_proxy_base_url,
+)
 from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
@@ -59,6 +67,7 @@ class BinanceFuturesConfig:
     recv_window: int = DEFAULT_RECV_WINDOW
     symbol: str | None = None
     config_path: Path | None = None
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG
 
 
 @dataclass(frozen=True)
@@ -166,6 +175,7 @@ def normalize_config(data: dict[str, Any], path: Path) -> BinanceFuturesConfig:
         recv_window=parse_positive_int(futures.get("recv_window", DEFAULT_RECV_WINDOW), "binance.futures.recv_window", path),
         symbol=normalize_config_symbol(futures.get("symbol"), path),
         config_path=path,
+        proxy_config=parse_proxy_config(futures, path, TradeConfigError),
     )
 
 
@@ -286,7 +296,7 @@ def build_signed_request(
     signed_params.append(("timestamp", str(timestamp)))
     query = urlencode(signed_params)
     signature = sign_query(query, config.api_secret)
-    base_url = USD_M_BASE_URLS[config.testnet]
+    base_url = resolve_proxy_base_url(USD_M_BASE_URLS[config.testnet], config.proxy_config)
     return SignedRequest(
         method=method.upper(),
         base_url=base_url,
@@ -294,7 +304,7 @@ def build_signed_request(
         query=query,
         signature=signature,
         url=f"{base_url}{path}?{query}&signature={signature}",
-        headers={"X-MBX-APIKEY": config.api_key},
+        headers=add_proxy_auth_headers({"X-MBX-APIKEY": config.api_key}, config.proxy_config),
     )
 
 
@@ -304,6 +314,8 @@ def request_preview(
     request: SignedRequest,
     mode: str,
 ) -> dict[str, Any]:
+    headers = {"X-MBX-APIKEY": redacted_api_key(config.api_key)}
+    headers.update(redacted_proxy_auth_headers(config.proxy_config))
     return {
         "mode": mode,
         "plan_hash": build_plan_hash(plan),
@@ -315,7 +327,7 @@ def request_preview(
         "params": [{"name": key, "value": value} for key, value in plan.params],
         "query": request.query,
         "url": redacted_url(request),
-        "headers": {"X-MBX-APIKEY": redacted_api_key(config.api_key)},
+        "headers": headers,
         "signature": "<redacted>",
     }
 

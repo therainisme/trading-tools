@@ -13,7 +13,7 @@ place = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = place
 SPEC.loader.exec_module(place)
 
-from futures_trade_utils import BinanceFuturesConfig, TradeValidationError  # noqa: E402
+from futures_trade_utils import BinanceFuturesConfig, BinanceProxyConfig, TradeValidationError  # noqa: E402
 
 
 class PlaceFuturesOrderTests(unittest.TestCase):
@@ -65,7 +65,16 @@ class PlaceFuturesOrderTests(unittest.TestCase):
 
     def test_dry_run_payload_redacts_secret_material(self):
         """Purpose: verify dry-run output contains a plan hash and redacts credentials."""
-        config = BinanceFuturesConfig(api_key="ABCDEFGHIJKL", api_secret="VERY_SECRET", market="um")
+        config = BinanceFuturesConfig(
+            api_key="ABCDEFGHIJKL",
+            api_secret="VERY_SECRET",
+            market="um",
+            proxy_config=BinanceProxyConfig(
+                enabled=True,
+                base_url="https://worker.example.test",
+                auth_key="proxy-secret-1234",
+            ),
+        )
         options = place.StandardOrderOptions(
             symbol="NVDAUSDT",
             side="SELL",
@@ -79,10 +88,13 @@ class PlaceFuturesOrderTests(unittest.TestCase):
         text = json.dumps(payload)
 
         self.assertEqual(payload["mode"], "dry-run")
+        self.assertEqual(payload["base_url"], "https://worker.example.test/fapi")
         self.assertEqual(payload["path"], "/fapi/v1/order")
+        self.assertEqual(payload["headers"]["X-Trading-Proxy-Key"], "prox...1234")
         self.assertIn("plan_hash", payload)
         self.assertNotIn("ABCDEFGHIJKL", text)
         self.assertNotIn("VERY_SECRET", text)
+        self.assertNotIn("proxy-secret-1234", text)
         self.assertIn("<redacted>", text)
 
     def test_live_mode_requires_matching_hash(self):

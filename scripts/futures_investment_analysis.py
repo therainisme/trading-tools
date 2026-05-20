@@ -21,6 +21,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from binance_proxy import (  # noqa: E402
+    DISABLED_PROXY_CONFIG,
+    BinanceProxyConfig,
+    add_proxy_auth_headers,
+    load_proxy_config_from_candidates,
+    parse_proxy_config,
+    redacted_proxy_auth_headers,
+    resolve_proxy_base_url,
+)
 from http_transport import ProxyConfigError, urlopen_with_env_proxy  # noqa: E402
 
 
@@ -55,6 +64,7 @@ class BinanceCredentials:
     recv_window: int = DEFAULT_RECV_WINDOW
     testnet: bool = False
     config_path: Path | None = None
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG
 
 
 @dataclass(frozen=True)
@@ -172,7 +182,12 @@ def load_credentials(root: Path | None = None, home: Path | None = None) -> Bina
         ),
         testnet=parse_bool(futures.get("testnet", False), "binance.futures.testnet", path),
         config_path=path,
+        proxy_config=parse_proxy_config(futures, path, ConfigError),
     )
+
+
+def load_optional_proxy_config(root: Path | None = None, home: Path | None = None) -> BinanceProxyConfig:
+    return load_proxy_config_from_candidates(config_candidates(root=root, home=home), ConfigError)
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -303,11 +318,12 @@ def build_endpoint_specs(options: AnalysisOptions) -> list[EndpointSpec]:
     return specs
 
 
-def build_public_url(spec: EndpointSpec) -> str:
+def build_public_url(spec: EndpointSpec, proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG) -> str:
     query = urlencode(spec.params)
+    base_url = resolve_proxy_base_url(PUBLIC_BASE_URL, proxy_config)
     if query:
-        return f"{PUBLIC_BASE_URL}{spec.path}?{query}"
-    return f"{PUBLIC_BASE_URL}{spec.path}"
+        return f"{base_url}{spec.path}?{query}"
+    return f"{base_url}{spec.path}"
 
 
 def sign_query(query: str, api_secret: str) -> str:
@@ -326,7 +342,7 @@ def build_signed_request(
     params = list(spec.params) + [("recvWindow", effective_recv_window), ("timestamp", timestamp)]
     query = urlencode(params)
     signature = sign_query(query, credentials.api_secret)
-    base_url = SIGNED_BASE_URLS[testnet or credentials.testnet]
+    base_url = resolve_proxy_base_url(SIGNED_BASE_URLS[testnet or credentials.testnet], credentials.proxy_config)
     signed_query = f"{query}&signature={signature}"
     return SignedRequest(
         method=spec.method,
@@ -335,7 +351,7 @@ def build_signed_request(
         query=query,
         signature=signature,
         url=f"{base_url}{spec.path}?{signed_query}",
-        headers={"X-MBX-APIKEY": credentials.api_key},
+        headers=add_proxy_auth_headers({"X-MBX-APIKEY": credentials.api_key}, credentials.proxy_config),
     )
 
 
@@ -382,11 +398,14 @@ def request_preview(
     timestamp_ms: int | None = None,
     recv_window: int | None = None,
     testnet: bool = False,
+    proxy_config: BinanceProxyConfig = DISABLED_PROXY_CONFIG,
 ) -> dict[str, Any]:
     if spec.signed:
         if credentials is None:
             raise ConfigError("signed endpoint preview requires Binance credentials")
         request = build_signed_request(spec, credentials, timestamp_ms=timestamp_ms, recv_window=recv_window, testnet=testnet)
+        headers = {"X-MBX-APIKEY": redact_api_key(credentials.api_key)}
+        headers.update(redacted_proxy_auth_headers(credentials.proxy_config))
         return {
             "name": spec.name,
             "group": spec.group,
@@ -396,16 +415,20 @@ def request_preview(
             "path": request.path,
             "query": request.query,
             "url": redacted_url(request),
-            "headers": {"X-MBX-APIKEY": redact_api_key(credentials.api_key)},
+            "headers": headers,
             "signature": "<redacted>",
         }
-    return {
+    preview = {
         "name": spec.name,
         "group": spec.group,
         "signed": False,
         "method": spec.method,
-        "url": build_public_url(spec),
+        "url": build_public_url(spec, proxy_config=proxy_config),
     }
+    headers = redacted_proxy_auth_headers(proxy_config)
+    if headers:
+        preview["headers"] = headers
+    return preview
 
 
 def collect_analysis(
@@ -419,6 +442,7 @@ def collect_analysis(
         credentials = load_credentials()
     if credentials is not None and options.recv_window is not None:
         credentials = replace(credentials, recv_window=validate_positive_limit(options.recv_window, "recv-window", 60000))
+    proxy_config = credentials.proxy_config if credentials is not None else load_optional_proxy_config()
 
     metadata = {
         "symbol": normalize_symbol(options.symbol),
@@ -440,6 +464,7 @@ def collect_analysis(
                     credentials=credentials,
                     recv_window=options.recv_window,
                     testnet=options.testnet,
+                    proxy_config=proxy_config,
                 )
                 for spec in specs
             ],
@@ -458,7 +483,12 @@ def collect_analysis(
             )
             data[spec.name] = fetch_json(request.url, headers=request.headers, opener=opener, timeout=timeout)
         else:
-            data[spec.name] = fetch_json(build_public_url(spec), opener=opener, timeout=timeout)
+            data[spec.name] = fetch_json(
+                build_public_url(spec, proxy_config=proxy_config),
+                headers=add_proxy_auth_headers({}, proxy_config),
+                opener=opener,
+                timeout=timeout,
+            )
 
     return {"metadata": metadata, "dry_run": False, "data": data}
 

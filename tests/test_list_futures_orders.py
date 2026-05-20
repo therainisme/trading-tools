@@ -64,6 +64,25 @@ class ListFuturesOrdersTests(unittest.TestCase):
             self.assertEqual(config.config_path, root_path)
             self.assertEqual(config.api_key, "root_api_key_abcdef")
 
+    def test_load_config_reads_proxy_settings(self):
+        """Purpose: verify order listing reads the Cloudflare Worker proxy config."""
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:
+            write_config(
+                root,
+                symbol="NVDAUSDT",
+                proxy={
+                    "enabled": True,
+                    "base_url": "https://worker.example.test",
+                    "auth_key": "proxy-secret-1234",
+                },
+            )
+
+            config = orders.load_config(root=Path(root), home=Path(home))
+            request = orders.build_signed_request(config, orders.OrderRequestOptions(kind="open"), timestamp_ms=1700000000000)
+
+            self.assertEqual(request.base_url, "https://worker.example.test/fapi")
+            self.assertEqual(request.headers["X-Trading-Proxy-Key"], "proxy-secret-1234")
+
     def test_um_open_orders_signed_request_uses_symbol(self):
         """Purpose: verify USD-M open order requests use the configured symbol and endpoint."""
         config = orders.BinanceFuturesConfig(api_key="api_key_123456", api_secret="secret", market="um", symbol="NVDAUSDT")
