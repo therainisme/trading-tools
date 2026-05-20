@@ -21,3 +21,4 @@ Load the matching reference file before running a tool.
 ## Shared reference
 
 Read `references/binance-futures.md` for Binance endpoint details, signing behavior, official docs, and common API errors.
+Read `references/configuration.md` before troubleshooting or changing `.trading-tools/config.json`; it contains the full JSON shape, the current Caddy proxy settings, and proxy verification commands.

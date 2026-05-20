@@ -167,7 +167,7 @@ class TradingToolsTests(unittest.TestCase):
             symbol="BTCUSDT",
             proxy_config=positions.BinanceProxyConfig(
                 enabled=True,
-                base_url="https://worker.example.test",
+                base_url="https://proxy.example.test",
                 auth_key="proxy-secret-1234",
             ),
         )
@@ -176,8 +176,8 @@ class TradingToolsTests(unittest.TestCase):
         payload = positions.dry_run_payload(config, request)
         text = json.dumps(payload)
 
-        self.assertEqual(request.base_url, "https://worker.example.test/fapi")
-        self.assertTrue(request.url.startswith("https://worker.example.test/fapi/fapi/v3/positionRisk?"))
+        self.assertEqual(request.base_url, "https://proxy.example.test/fapi")
+        self.assertTrue(request.url.startswith("https://proxy.example.test/fapi/fapi/v3/positionRisk?"))
         self.assertEqual(request.headers["X-Trading-Proxy-Key"], "proxy-secret-1234")
         self.assertEqual(payload["headers"]["X-Trading-Proxy-Key"], "prox...1234")
         self.assertNotIn("proxy-secret-1234", text)

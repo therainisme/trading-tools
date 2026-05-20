@@ -153,11 +153,11 @@ class FuturesInvestmentAnalysisTests(unittest.TestCase):
         self.assertIn("account_information", text)
 
     def test_public_dry_run_uses_proxy_and_redacts_key(self):
-        """Purpose: verify public endpoint previews show the Worker URL with a redacted proxy key."""
+        """Purpose: verify public endpoint previews show the Caddy URL with a redacted proxy key."""
         options = analysis.AnalysisOptions(symbol="NVDAUSDT", groups=("valuation",), dry_run=True)
         proxy_config = analysis.BinanceProxyConfig(
             enabled=True,
-            base_url="https://worker.example.test",
+            base_url="https://proxy.example.test",
             auth_key="proxy-secret-1234",
         )
 
@@ -167,7 +167,7 @@ class FuturesInvestmentAnalysisTests(unittest.TestCase):
         )
         text = json.dumps(preview)
 
-        self.assertTrue(preview["url"].startswith("https://worker.example.test/fapi/fapi/v1/premiumIndex?"))
+        self.assertTrue(preview["url"].startswith("https://proxy.example.test/fapi/fapi/v1/premiumIndex?"))
         self.assertEqual(preview["headers"]["X-Trading-Proxy-Key"], "prox...1234")
         self.assertNotIn("proxy-secret-1234", text)
 

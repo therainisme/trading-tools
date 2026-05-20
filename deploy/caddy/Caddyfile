@@ -1,0 +1,93 @@
+{
+    # Caddy's admin API stays on its default local-only listener.
+}
+
+bnp.therainisme.com {
+    # Disable access logging so signed Binance query strings stay out of Caddy logs.
+    log {
+        output discard
+    }
+
+    header {
+        Cache-Control "no-store"
+        Pragma "no-cache"
+    }
+
+    @fapi {
+        path /fapi /fapi/*
+        header X-Trading-Proxy-Key {$TRADING_PROXY_KEY:__TRADING_PROXY_KEY_NOT_SET__}
+    }
+    handle @fapi {
+        uri strip_prefix /fapi
+        reverse_proxy https://fapi.binance.com {
+            header_up Host fapi.binance.com
+            header_up -X-Trading-Proxy-Key
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -Forwarded
+            header_up Cache-Control "no-store"
+            header_up Pragma "no-cache"
+            header_down Cache-Control "no-store"
+            header_down Pragma "no-cache"
+        }
+    }
+
+    @dapi {
+        path /dapi /dapi/*
+        header X-Trading-Proxy-Key {$TRADING_PROXY_KEY:__TRADING_PROXY_KEY_NOT_SET__}
+    }
+    handle @dapi {
+        uri strip_prefix /dapi
+        reverse_proxy https://dapi.binance.com {
+            header_up Host dapi.binance.com
+            header_up -X-Trading-Proxy-Key
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -Forwarded
+            header_up Cache-Control "no-store"
+            header_up Pragma "no-cache"
+            header_down Cache-Control "no-store"
+            header_down Pragma "no-cache"
+        }
+    }
+
+    @demo_fapi {
+        path /demo-fapi /demo-fapi/*
+        header X-Trading-Proxy-Key {$TRADING_PROXY_KEY:__TRADING_PROXY_KEY_NOT_SET__}
+    }
+    handle @demo_fapi {
+        uri strip_prefix /demo-fapi
+        reverse_proxy https://demo-fapi.binance.com {
+            header_up Host demo-fapi.binance.com
+            header_up -X-Trading-Proxy-Key
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -Forwarded
+            header_up Cache-Control "no-store"
+            header_up Pragma "no-cache"
+            header_down Cache-Control "no-store"
+            header_down Pragma "no-cache"
+        }
+    }
+
+    @testnet_future {
+        path /testnet-future /testnet-future/*
+        header X-Trading-Proxy-Key {$TRADING_PROXY_KEY:__TRADING_PROXY_KEY_NOT_SET__}
+    }
+    handle @testnet_future {
+        uri strip_prefix /testnet-future
+        reverse_proxy https://testnet.binancefuture.com {
+            header_up Host testnet.binancefuture.com
+            header_up -X-Trading-Proxy-Key
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -Forwarded
+            header_up Cache-Control "no-store"
+            header_up Pragma "no-cache"
+            header_down Cache-Control "no-store"
+            header_down Pragma "no-cache"
+        }
+    }
+
+    respond 404
+}

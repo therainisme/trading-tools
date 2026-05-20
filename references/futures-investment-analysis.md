@@ -52,6 +52,8 @@ The tool reads the first existing config file:
 1. `<skill-root>/.trading-tools/config.json`
 2. `~/.trading-tools/config.json`
 
+See `references/configuration.md` for the complete `config.json` shape, including the optional Caddy proxy block. Public market-data requests also use the proxy block when it is present.
+
 ```json
 {
   "binance": {
@@ -61,7 +63,13 @@ The tool reads the first existing config file:
       "market": "um",
       "testnet": false,
       "recv_window": 5000,
-      "symbol": null
+      "symbol": null,
+      "proxy": {
+        "enabled": true,
+        "base_url": "https://bnp.therainisme.com",
+        "auth_header": "X-Trading-Proxy-Key",
+        "auth_key": "your-proxy-key"
+      }
     }
   }
 }
@@ -77,6 +85,11 @@ The tool reads the first existing config file:
 | `binance.futures.testnet` | No | `true`, `false` | `false` | Used as account-risk testnet setting unless `--testnet` is passed. |
 | `binance.futures.market` | No | `um`, `cm` | None | Present for compatibility with position tools. The investment-analysis account-risk endpoints are USD-M. |
 | `binance.futures.symbol` | No | String or `null` | `null` | Present for compatibility with position tools. This tool uses `--symbol`. |
+| `binance.futures.proxy` | No | JSON object | Disabled | Optional endpoint proxy config used by public and signed requests. |
+| `binance.futures.proxy.enabled` | Yes when `proxy` exists | `true`, `false` | `false` | Enables proxy route rewriting. |
+| `binance.futures.proxy.base_url` | Yes when enabled | HTTP(S) URL | None | Proxy origin. Current Caddy proxy uses `https://bnp.therainisme.com`. |
+| `binance.futures.proxy.auth_header` | No | HTTP header name | `X-Trading-Proxy-Key` | Header used for proxy authentication. |
+| `binance.futures.proxy.auth_key` | Yes when enabled | Non-empty string | None | Proxy key. Must match the Caddy `TRADING_PROXY_KEY` environment variable. |
 
 ## Valuation endpoints
 

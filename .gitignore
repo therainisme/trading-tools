@@ -1,5 +1,4 @@
 __pycache__/
 *.py[cod]
 .trading-tools/config.json
-deploy/cloudflare-worker/.dev.vars
-deploy/cloudflare-worker/.wrangler/
+deploy/caddy/.env

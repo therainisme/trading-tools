@@ -14,7 +14,7 @@ import binance_proxy  # noqa: E402
 
 class BinanceProxyTests(unittest.TestCase):
     def test_parse_enabled_proxy_config(self):
-        """Purpose: verify the shared config parser accepts the Worker proxy fields."""
+        """Purpose: verify the shared config parser accepts the Caddy proxy fields."""
         config = binance_proxy.parse_proxy_config(
             {
                 "proxy": {
@@ -48,35 +48,35 @@ class BinanceProxyTests(unittest.TestCase):
         self.assertIn("auth_key", str(raised.exception))
 
     def test_resolve_proxy_base_urls(self):
-        """Purpose: verify official Binance bases map to the Worker path prefixes."""
+        """Purpose: verify official Binance bases map to the Caddy path prefixes."""
         proxy_config = binance_proxy.BinanceProxyConfig(
             enabled=True,
-            base_url="https://worker.example.test",
+            base_url="https://proxy.example.test",
             auth_key="proxy-secret-1234",
         )
 
         self.assertEqual(
             binance_proxy.resolve_proxy_base_url("https://fapi.binance.com", proxy_config),
-            "https://worker.example.test/fapi",
+            "https://proxy.example.test/fapi",
         )
         self.assertEqual(
             binance_proxy.resolve_proxy_base_url("https://dapi.binance.com", proxy_config),
-            "https://worker.example.test/dapi",
+            "https://proxy.example.test/dapi",
         )
         self.assertEqual(
             binance_proxy.resolve_proxy_base_url("https://demo-fapi.binance.com", proxy_config),
-            "https://worker.example.test/demo-fapi",
+            "https://proxy.example.test/demo-fapi",
         )
         self.assertEqual(
             binance_proxy.resolve_proxy_base_url("https://testnet.binancefuture.com", proxy_config),
-            "https://worker.example.test/testnet-future",
+            "https://proxy.example.test/testnet-future",
         )
 
     def test_headers_are_added_and_redacted(self):
         """Purpose: verify proxy auth is sent live and redacted in dry-run data."""
         proxy_config = binance_proxy.BinanceProxyConfig(
             enabled=True,
-            base_url="https://worker.example.test",
+            base_url="https://proxy.example.test",
             auth_key="proxy-secret-1234",
         )
 
@@ -97,7 +97,7 @@ class BinanceProxyTests(unittest.TestCase):
                             "futures": {
                                 "proxy": {
                                     "enabled": True,
-                                    "base_url": "https://worker.example.test",
+                                    "base_url": "https://proxy.example.test",
                                     "auth_key": "proxy-secret-1234",
                                 }
                             }
@@ -110,7 +110,7 @@ class BinanceProxyTests(unittest.TestCase):
             config = binance_proxy.load_proxy_config_from_candidates([path])
 
         self.assertTrue(config.enabled)
-        self.assertEqual(config.base_url, "https://worker.example.test")
+        self.assertEqual(config.base_url, "https://proxy.example.test")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,8 @@ The tool reads JSON configuration from the first existing file:
 
 ## Config parameters
 
+See `references/configuration.md` for the complete `config.json` shape, including the optional Caddy proxy block.
+
 ```json
 {
   "binance": {
@@ -32,7 +34,13 @@ The tool reads JSON configuration from the first existing file:
       "market": "um",
       "testnet": false,
       "recv_window": 5000,
-      "symbol": null
+      "symbol": null,
+      "proxy": {
+        "enabled": true,
+        "base_url": "https://bnp.therainisme.com",
+        "auth_header": "X-Trading-Proxy-Key",
+        "auth_key": "your-proxy-key"
+      }
     }
   }
 }
@@ -48,6 +56,11 @@ The tool reads JSON configuration from the first existing file:
 | `binance.futures.testnet` | No | `true`, `false` | `false` | Use the Binance futures testnet endpoint for the configured market. Must be a JSON boolean. |
 | `binance.futures.recv_window` | No | Positive integer milliseconds | `5000` | Signed request validity window. Values are parsed as integers and must be positive. |
 | `binance.futures.symbol` | No | String or `null` | `null` | Optional symbol filter from config. Strings are trimmed and uppercased. Empty strings become `null`. |
+| `binance.futures.proxy` | No | JSON object | Disabled | Optional endpoint proxy config. Current Caddy proxy uses `https://bnp.therainisme.com`. |
+| `binance.futures.proxy.enabled` | Yes when `proxy` exists | `true`, `false` | `false` | Enables proxy route rewriting. |
+| `binance.futures.proxy.base_url` | Yes when enabled | HTTP(S) URL | None | Proxy origin. Official `https://fapi.binance.com` maps to `base_url + /fapi`. |
+| `binance.futures.proxy.auth_header` | No | HTTP header name | `X-Trading-Proxy-Key` | Header used for proxy authentication. |
+| `binance.futures.proxy.auth_key` | Yes when enabled | Non-empty string | None | Proxy key. Must match the Caddy `TRADING_PROXY_KEY` environment variable. |
 
 ## CLI parameters
 

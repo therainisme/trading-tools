@@ -297,28 +297,46 @@ HTTPS_PROXY=http://127.0.0.1:7890 python scripts/render_futures_chart.py --symbo
 
 Proxy URLs must use `http://` or `https://`. SOCKS proxy URLs such as `socks5://...` are not supported by the built-in transport.
 
-## Cloudflare Worker endpoint proxy
+## Caddy endpoint proxy
 
-The repository includes a trial Cloudflare Worker proxy in `deploy/cloudflare-worker/`. It accepts requests only when the client sends `X-Trading-Proxy-Key` with the configured secret value. Failed auth and unknown route prefixes return HTTP 404. The default custom domain is `bnp.therainisme.com`, and `workers_dev = true` remains enabled as a fallback test URL.
+The repository includes a Caddy reverse proxy config in `deploy/caddy/Caddyfile`. It accepts requests only when the client sends `X-Trading-Proxy-Key` with the configured secret value. Failed auth and unknown route prefixes return HTTP 404. The default custom domain is `bnp.therainisme.com`.
 
-Worker route mapping:
+See `references/configuration.md` for the full local `config.json` shape used by the Python tools.
 
-| Worker path prefix | Upstream base URL |
+Caddy route mapping:
+
+| Caddy path prefix | Upstream base URL |
 | --- | --- |
 | `/fapi/*` | `https://fapi.binance.com/*` |
 | `/dapi/*` | `https://dapi.binance.com/*` |
 | `/demo-fapi/*` | `https://demo-fapi.binance.com/*` |
 | `/testnet-future/*` | `https://testnet.binancefuture.com/*` |
 
-Deploy:
+DNS and deploy:
 
 ```bash
-cd deploy/cloudflare-worker
-npx wrangler secret put TRADING_PROXY_KEY
-npx wrangler deploy
+# Point bnp.therainisme.com to the VPS first.
+sudo apt-get update
+sudo apt-get install -y caddy
+sudo install -m 0644 deploy/caddy/Caddyfile /etc/caddy/Caddyfile
+sudo systemctl edit caddy
 ```
 
-Verify with the custom domain after deployment:
+Use this systemd override, replacing the placeholder with the real proxy key:
+
+```ini
+[Service]
+Environment="TRADING_PROXY_KEY=your-proxy-key"
+```
+
+Validate and reload:
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+```
+
+Verify with the custom domain:
 
 ```bash
 curl -i https://bnp.therainisme.com/fapi/fapi/v1/time
@@ -351,16 +369,16 @@ Enable the proxy from `.trading-tools/config.json`:
 }
 ```
 
-The Python tools sign Binance query strings before switching the base URL to the Worker route. Dry-run output redacts the Binance API key, the signature, and the proxy key.
+The Python tools sign Binance query strings before switching the base URL to the Caddy route. Dry-run output redacts the Binance API key, the signature, and the proxy key.
 
 Proxy config fields:
 
 | Field | Required when enabled | Meaning |
 | --- | --- | --- |
-| `enabled` | Yes | Turns Worker endpoint routing on. |
-| `base_url` | Yes | Worker origin, currently `https://bnp.therainisme.com`. |
+| `enabled` | Yes | Turns Caddy endpoint routing on. |
+| `base_url` | Yes | Caddy origin, currently `https://bnp.therainisme.com`. |
 | `auth_header` | No | Header name sent by the Python tools, defaults to `X-Trading-Proxy-Key`. |
-| `auth_key` | Yes | Client-side proxy key. It must match the Worker secret `TRADING_PROXY_KEY`. |
+| `auth_key` | Yes | Client-side proxy key. It must match the Caddy `TRADING_PROXY_KEY` environment variable. |
 
 The local `.trading-tools/config.json` file is ignored by git. Store the real `auth_key` there, and keep documentation examples as placeholders.
 

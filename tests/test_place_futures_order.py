@@ -71,7 +71,7 @@ class PlaceFuturesOrderTests(unittest.TestCase):
             market="um",
             proxy_config=BinanceProxyConfig(
                 enabled=True,
-                base_url="https://worker.example.test",
+                base_url="https://proxy.example.test",
                 auth_key="proxy-secret-1234",
             ),
         )
@@ -88,7 +88,7 @@ class PlaceFuturesOrderTests(unittest.TestCase):
         text = json.dumps(payload)
 
         self.assertEqual(payload["mode"], "dry-run")
-        self.assertEqual(payload["base_url"], "https://worker.example.test/fapi")
+        self.assertEqual(payload["base_url"], "https://proxy.example.test/fapi")
         self.assertEqual(payload["path"], "/fapi/v1/order")
         self.assertEqual(payload["headers"]["X-Trading-Proxy-Key"], "prox...1234")
         self.assertIn("plan_hash", payload)
